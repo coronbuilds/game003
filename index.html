@@ -4,838 +4,1229 @@
 <meta charset="UTF-8">
 <meta name="viewport"
 content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-
 <title>RED OR DEAD 2</title>
-
 <style>
 *{
     box-sizing:border-box;
     -webkit-tap-highlight-color:transparent;
+    user-select:none;
 }
-
 html,body{
     margin:0;
+    padding:0;
     width:100%;
     height:100%;
     overflow:hidden;
-    background:#111;
-    font-family:Arial,sans-serif;
+    background:#080808;
+    font-family:Arial,"Noto Sans JP",sans-serif;
 }
-
 body{
     display:flex;
     justify-content:center;
     align-items:center;
 }
-
 #gameWrap{
     position:relative;
-    width:min(100vw,900px);
-    aspect-ratio:900/500;
+    width:min(100vw,56.25vh);
+    height:min(100vh,177.777vw);
+    max-width:480px;
+    max-height:853px;
 }
-
 canvas{
+    display:block;
     width:100%;
     height:100%;
-    display:block;
-    background:#82d4ff;
+    background:#65c9ff;
     touch-action:none;
 }
-
-/* スマホ操作 */
+/* =========================
+   スマホ操作
+========================= */
 .controls{
     position:absolute;
     left:0;
     right:0;
-    bottom:15px;
+    bottom:16px;
     display:flex;
     justify-content:space-between;
-    padding:0 18px;
+    align-items:flex-end;
+    padding:0 15px;
     pointer-events:none;
 }
-
 .leftControls,
 .rightControls{
     display:flex;
-    gap:12px;
+    gap:10px;
     pointer-events:auto;
 }
-
 .controlBtn{
-    width:64px;
-    height:64px;
+    width:62px;
+    height:62px;
     border-radius:50%;
-    border:2px solid rgba(255,255,255,.7);
-    background:rgba(0,0,0,.45);
-    color:white;
-    font-size:28px;
-    font-weight:bold;
+    border:2px solid rgba(255,255,255,.75);
+    background:rgba(0,0,0,.48);
+    color:#fff;
     display:flex;
     justify-content:center;
     align-items:center;
-    user-select:none;
+    font-size:26px;
+    font-weight:bold;
     touch-action:none;
 }
-
-.shootBtn{
-    width:76px;
-    height:76px;
-    background:rgba(180,0,0,.65);
-    font-size:24px;
+.controlBtn:active{
+    transform:scale(.92);
+    background:rgba(255,255,255,.3);
 }
-
-.jumpBtn{
-    background:rgba(0,80,180,.6);
+#shootBtn{
+    width:78px;
+    height:78px;
+    background:rgba(190,0,0,.72);
+    font-size:27px;
 }
-
-/* ゲームオーバー用 */
-#restart{
+#jumpBtn{
+    background:rgba(0,85,190,.7);
+}
+#startBtn,
+#restartBtn,
+#upgradeBtn,
+#nextStageBtn{
     position:absolute;
     left:50%;
-    top:62%;
-    transform:translate(-50%,-50%);
-    display:none;
+    transform:translateX(-50%);
     border:0;
-    border-radius:12px;
-    padding:14px 30px;
-    font-size:22px;
-    font-weight:bold;
-    background:white;
+    border-radius:14px;
+    padding:15px 35px;
+    background:#fff;
     color:#111;
+    font-size:21px;
+    font-weight:bold;
+    box-shadow:0 5px 20px rgba(0,0,0,.35);
+    touch-action:manipulation;
+}
+#startBtn{
+    top:64%;
+}
+#restartBtn{
+    top:67%;
+    display:none;
+}
+#upgradeBtn{
+    top:70%;
+    display:none;
+}
+#nextStageBtn{
+    top:78%;
+    display:none;
 }
 </style>
 </head>
-
 <body>
-
 <div id="gameWrap">
-
-<canvas id="game" width="900" height="500"></canvas>
-
+<canvas id="game"
+        width="540"
+        height="960">
+</canvas>
+<button id="startBtn">
+    START
+</button>
+<button id="restartBtn">
+    もう一度
+</button>
+<button id="upgradeBtn">
+    武器を強化
+</button>
+<button id="nextStageBtn">
+    次のステージへ
+</button>
 <div class="controls">
-
     <div class="leftControls">
-        <div class="controlBtn" id="leftBtn">◀</div>
-        <div class="controlBtn" id="rightBtn">▶</div>
+        <div class="controlBtn" id="leftBtn">
+            ◀
+        </div>
+        <div class="controlBtn" id="rightBtn">
+            ▶
+        </div>
     </div>
-
     <div class="rightControls">
-        <div class="controlBtn jumpBtn" id="jumpBtn">▲</div>
-        <div class="controlBtn shootBtn" id="shootBtn">🔥</div>
+        <div class="controlBtn" id="jumpBtn">
+            ▲
+        </div>
+        <div class="controlBtn" id="shootBtn">
+            🔥
+        </div>
     </div>
-
 </div>
-
-<button id="restart">もう一度プレイ</button>
-
 </div>
-
 <script>
-
-/* =========================
-   基本設定
-========================= */
-
-const canvas = document.getElementById("game");
-const ctx = canvas.getContext("2d");
-
+/* =====================================================
+   RED OR DEAD 2
+   Vertical Edition
+===================================================== */
+const canvas =
+    document.getElementById("game");
+const ctx =
+    canvas.getContext("2d");
 const W = canvas.width;
 const H = canvas.height;
-
-const groundY = 410;
-
-let gameOver = false;
+/* =====================================================
+   ゲーム状態
+===================================================== */
+let state = "title";
 let score = 0;
 let coins = 0;
+let stage = 1;
+let kills = 0;
+let stageKills = 0;
 let combo = 0;
 let comboTimer = 0;
 let elapsed = 0;
+let boss = null;
+let bossWarning = 0;
 let shake = 0;
-
+let flash = 0;
+let spawnTimer = 0;
+let stageTransition = 0;
+/* =====================================================
+   プレイヤー
+===================================================== */
+const player = {
+    x:90,
+    y:760,
+    w:46,
+    h:70,
+    vx:0,
+    vy:0,
+    speed:5.5,
+    jumpPower:-15,
+    gravity:.75,
+    hp:5,
+    maxHp:5,
+    weaponLevel:1,
+    fireRate:11,
+    bulletSpeed:13,
+    bulletDamage:1,
+    shotPower:1,
+    invincible:0,
+    shield:0,
+    onGround:false,
+    facing:1,
+    shootCooldown:0
+};
+/* =====================================================
+   配列
+===================================================== */
 let bullets = [];
 let enemies = [];
 let particles = [];
-let clouds = [];
+let floatingTexts = [];
 let coinsObj = [];
 let powerups = [];
-
-
-/* =========================
-   キー入力
-========================= */
-
+let stars = [];
+let clouds = [];
+/* =====================================================
+   キー
+===================================================== */
 const keys = {};
-
-document.addEventListener("keydown",e=>{
-    keys[e.key.toLowerCase()] = true;
-
-    if(
-        ["arrowleft","arrowright"," ","z","x"].includes(
+/* =====================================================
+   キーボード
+===================================================== */
+document.addEventListener(
+    "keydown",
+    e=>{
+        const key =
+            e.key.toLowerCase();
+        keys[key]=true;
+        if(
+            [
+                "arrowleft",
+                "arrowright",
+                "arrowup",
+                " ",
+                "z",
+                "x"
+            ].includes(key)
+        ){
+            e.preventDefault();
+        }
+        if(
+            key==="x" &&
+            state==="playing"
+        ){
+            shoot();
+        }
+        if(
+            key==="r" &&
+            state==="gameover"
+        ){
+            restartGame();
+        }
+    }
+);
+document.addEventListener(
+    "keyup",
+    e=>{
+        keys[
             e.key.toLowerCase()
-        )
-    ){
-        e.preventDefault();
+        ]=false;
     }
-
-    if(e.key.toLowerCase()==="r" && gameOver){
-        restartGame();
-    }
-});
-
-document.addEventListener("keyup",e=>{
-    keys[e.key.toLowerCase()] = false;
-});
-
-
-/* =========================
-   プレイヤー
-========================= */
-
-const player = {
-
-    x:100,
-    y:groundY-62,
-
-    w:42,
-    h:62,
-
-    vx:0,
-    vy:0,
-
-    hp:5,
-    maxHp:5,
-
-    speed:5.5,
-
-    jumpPower:-13,
-
-    onGround:false,
-
-    invincible:0,
-
-    shield:0,
-
-    shootCooldown:0
-};
-
-
-/* =========================
-   雲
-========================= */
-
-for(let i=0;i<8;i++){
-
+);
+/* =====================================================
+   背景
+===================================================== */
+for(let i=0;i<60;i++){
+    stars.push({
+        x:Math.random()*W,
+        y:Math.random()*H,
+        size:1+Math.random()*2,
+        alpha:.2+Math.random()*.6
+    });
+}
+for(let i=0;i<7;i++){
     clouds.push({
         x:Math.random()*W,
-        y:40+Math.random()*130,
-        w:70+Math.random()*100,
+        y:80+Math.random()*300,
+        w:80+Math.random()*130,
         speed:.2+Math.random()*.3
     });
-
 }
-
-
-/* =========================
-   発射
-========================= */
-
+/* =====================================================
+   ステージ設定
+===================================================== */
+function stageGoal(){
+    return 12 + stage*6;
+}
+function bossStage(){
+    return stage%3===0;
+}
+/* =====================================================
+   タイトル
+===================================================== */
+function startGame(){
+    state="playing";
+    score=0;
+    coins=0;
+    stage=1;
+    kills=0;
+    stageKills=0;
+    combo=0;
+    elapsed=0;
+    resetPlayer();
+    bullets=[];
+    enemies=[];
+    particles=[];
+    floatingTexts=[];
+    coinsObj=[];
+    powerups=[];
+    boss=null;
+    spawnTimer=30;
+    document.getElementById(
+        "startBtn"
+    ).style.display="none";
+}
+/* =====================================================
+   プレイヤーリセット
+===================================================== */
+function resetPlayer(){
+    player.x=90;
+    player.y=760;
+    player.vx=0;
+    player.vy=0;
+    player.hp=player.maxHp;
+    player.invincible=0;
+    player.shield=0;
+    player.onGround=false;
+}
+/* =====================================================
+   射撃
+===================================================== */
 function shoot(){
-
-    if(gameOver) return;
-
-    if(player.shootCooldown>0) return;
-
-    bullets.push({
-
-        x:player.x+player.w,
-        y:player.y+20,
-
-        w:18,
-        h:5,
-
-        speed:12
-
-    });
-
-    player.shootCooldown=8;
-
+    if(
+        state!=="playing" ||
+        player.shootCooldown>0
+    ){
+        return;
+    }
+    const count =
+        player.weaponLevel>=4 ? 3 :
+        player.weaponLevel>=2 ? 2 : 1;
+    for(let i=0;i<count;i++){
+        let offset=0;
+        if(count===2){
+            offset =
+                i===0 ? -4 : 4;
+        }
+        if(count===3){
+            offset =
+                i===0 ? -8 :
+                i===1 ? 0 : 8;
+        }
+        bullets.push({
+            x:player.x+player.w,
+            y:player.y+25+offset,
+            w:20,
+            h:6,
+            speed:player.bulletSpeed,
+            damage:player.bulletDamage,
+            angle:offset*.01
+        });
+    }
+    player.shootCooldown=
+        player.fireRate;
 }
-
-
-/* =========================
+/* =====================================================
    敵生成
-========================= */
-
+===================================================== */
 function spawnEnemy(){
-
-    const type=Math.random();
-
-    if(type<0.65){
-
-        enemies.push({
-
+    const r=Math.random();
+    let enemy;
+    if(r<.55){
+        enemy={
             type:"normal",
-
-            x:W+50,
-            y:groundY-50,
-
-            w:42,
-            h:50,
-
+            x:W+40,
+            y:750,
+            w:44,
+            h:55,
             hp:1,
             maxHp:1,
-
-            speed:3+Math.random()*1.5,
-
-            color:"#e3262e"
-
-        });
-
-    }else if(type<0.88){
-
-        enemies.push({
-
+            speed:2.5+Math.random()*1.5,
+            color:"#e52935",
+            score:100
+        };
+    }
+    else if(r<.78){
+        enemy={
             type:"fast",
-
-            x:W+50,
-            y:groundY-38,
-
-            w:32,
-            h:38,
-
+            x:W+40,
+            y:770,
+            w:34,
+            h:42,
             hp:1,
             maxHp:1,
-
             speed:5+Math.random()*2,
-
-            color:"#ff7b00"
-
-        });
-
-    }else{
-
-        enemies.push({
-
+            color:"#ff8a00",
+            score:150
+        };
+    }
+    else if(r<.94){
+        enemy={
             type:"tank",
-
-            x:W+50,
-            y:groundY-70,
-
-            w:55,
-            h:70,
-
-            hp:3,
-            maxHp:3,
-
-            speed:1.5,
-
-            color:"#7d1fa2"
-
-        });
-
+            x:W+40,
+            y:725,
+            w:58,
+            h:80,
+            hp:3+stage,
+            maxHp:3+stage,
+            speed:1.2,
+            color:"#7623a7",
+            score:300
+        };
     }
-
+    else{
+        enemy={
+            type:"elite",
+            x:W+40,
+            y:710,
+            w:60,
+            h:95,
+            hp:5+stage*2,
+            maxHp:5+stage*2,
+            speed:1.7,
+            color:"#222",
+            score:700
+        };
+    }
+    enemies.push(enemy);
 }
-
-
-/* =========================
-   アイテム
-========================= */
-
+/* =====================================================
+   ボス
+===================================================== */
+function spawnBoss(){
+    boss={
+        x:W+40,
+        y:590,
+        w:130,
+        h:180,
+        hp:50+stage*25,
+        maxHp:50+stage*25,
+        speed:1,
+        attackTimer:100,
+        entered:false
+    };
+    bossWarning=180;
+}
+/* =====================================================
+   コイン
+===================================================== */
 function spawnCoin(){
-
     coinsObj.push({
-
-        x:W+30,
-        y:280+Math.random()*80,
-
-        r:10,
-
+        x:W+20,
+        y:580+Math.random()*180,
+        r:12,
         speed:3
-
     });
-
 }
-
+/* =====================================================
+   シールド
+===================================================== */
 function spawnShield(){
-
     powerups.push({
-
-        x:W+30,
-        y:300,
-
-        w:24,
-        h:24,
-
+        x:W+20,
+        y:580+Math.random()*180,
+        w:28,
+        h:28,
         speed:3,
-
         type:"shield"
-
     });
-
 }
-
-
-/* =========================
+/* =====================================================
    爆発
-========================= */
-
-function explosion(x,y,color="#ffcc00"){
-
-    for(let i=0;i<18;i++){
-
-        const angle=Math.random()*Math.PI*2;
-        const speed=2+Math.random()*5;
-
+===================================================== */
+function explosion(
+    x,
+    y,
+    amount=20,
+    size=5
+){
+    for(let i=0;i<amount;i++){
+        const angle=
+            Math.random()*Math.PI*2;
+        const speed=
+            1.5+Math.random()*6;
         particles.push({
-
-            x,
-            y,
-
-            vx:Math.cos(angle)*speed,
-            vy:Math.sin(angle)*speed,
-
-            life:30+Math.random()*20,
-
-            size:2+Math.random()*5,
-
-            color
-
+            x:x,
+            y:y,
+            vx:
+                Math.cos(angle)*speed,
+            vy:
+                Math.sin(angle)*speed,
+            life:
+                25+Math.random()*30,
+            maxLife:55,
+            size:
+                2+Math.random()*size,
+            type:"spark"
         });
-
     }
-
-    shake=8;
-
+    shake=Math.max(
+        shake,
+        7
+    );
 }
-
-
-/* =========================
+/* =====================================================
+   テキストエフェクト
+===================================================== */
+function textEffect(
+    text,
+    x,
+    y,
+    color="#fff"
+){
+    floatingTexts.push({
+        text,
+        x,
+        y,
+        color,
+        life:50
+    });
+}
+/* =====================================================
    当たり判定
-========================= */
-
+===================================================== */
 function rectHit(a,b){
-
     return(
-
         a.x < b.x+b.w &&
         a.x+a.w > b.x &&
         a.y < b.y+b.h &&
         a.y+a.h > b.y
-
     );
-
 }
-
-
-/* =========================
-   ダメージ
-========================= */
-
+/* =====================================================
+   プレイヤーダメージ
+===================================================== */
 function damagePlayer(){
-
-    if(player.invincible>0) return;
-
+    if(
+        player.invincible>0 ||
+        state!=="playing"
+    ){
+        return;
+    }
     if(player.shield>0){
-
         player.shield=0;
-        player.invincible=50;
-
+        player.invincible=80;
         explosion(
             player.x+player.w/2,
             player.y+player.h/2,
-            "#33ccff"
+            25,
+            6
         );
-
+        textEffect(
+            "SHIELD!",
+            player.x,
+            player.y-30,
+            "#55ddff"
+        );
         return;
     }
-
     player.hp--;
-
-    player.invincible=70;
-
+    player.invincible=90;
     combo=0;
-
-    shake=12;
-
+    flash=10;
+    shake=14;
     explosion(
         player.x+player.w/2,
         player.y+player.h/2,
-        "#ff3333"
+        30,
+        7
     );
-
     if(player.hp<=0){
-
-        gameOver=true;
-
-        document.getElementById("restart").style.display="block";
-
+        gameOver();
     }
-
 }
-
-
-/* =========================
+/* =====================================================
+   敵撃破
+===================================================== */
+function killEnemy(enemy){
+    const index=
+        enemies.indexOf(enemy);
+    if(index!==-1){
+        enemies.splice(
+            index,
+            1
+        );
+    }
+    kills++;
+    stageKills++;
+    combo++;
+    comboTimer=120;
+    const multiplier=
+        Math.min(
+            5,
+            1+Math.floor(combo/5)
+        );
+    const earned=
+        enemy.score*multiplier;
+    score+=earned;
+    if(Math.random()<.25){
+        spawnCoinAt(
+            enemy.x,
+            enemy.y
+        );
+    }
+    explosion(
+        enemy.x+enemy.w/2,
+        enemy.y+enemy.h/2,
+        enemy.type==="elite" ? 35 : 22,
+        6
+    );
+    textEffect(
+        "+"+earned,
+        enemy.x,
+        enemy.y-15,
+        "#ffe600"
+    );
+}
+/* =====================================================
+   コイン生成位置指定
+===================================================== */
+function spawnCoinAt(x,y){
+    coinsObj.push({
+        x,
+        y,
+        r:12,
+        speed:2.5
+    });
+}
+/* =====================================================
+   ボス撃破
+===================================================== */
+function defeatBoss(){
+    if(!boss) return;
+    explosion(
+        boss.x+boss.w/2,
+        boss.y+boss.h/2,
+        100,
+        12
+    );
+    score+=5000;
+    coins+=10;
+    textEffect(
+        "BOSS DEFEATED!",
+        boss.x-60,
+        boss.y-30,
+        "#ffdd00"
+    );
+    boss=null;
+    state="stageclear";
+    document.getElementById(
+        "nextStageBtn"
+    ).style.display="block";
+}
+/* =====================================================
    更新
-========================= */
-
+===================================================== */
 function update(){
-
-    if(gameOver) return;
-
+    if(state!=="playing"){
+        updateEffects();
+        return;
+    }
     elapsed+=1/60;
-
-    /* 難易度 */
-
-    const difficulty=1+elapsed/45;
-
-
-    /* 移動 */
-
+    /* =====================
+       プレイヤー移動
+    ===================== */
     player.vx=0;
-
     if(keys["arrowleft"]){
         player.vx=-player.speed;
+        player.facing=-1;
     }
-
     if(keys["arrowright"]){
         player.vx=player.speed;
+        player.facing=1;
     }
-
     player.x+=player.vx;
-
     player.x=Math.max(
         10,
-        Math.min(W-player.w-10,player.x)
+        Math.min(
+            W-player.w-10,
+            player.x
+        )
     );
-
-
-    /* ジャンプ */
-
+    /* =====================
+       ジャンプ
+    ===================== */
     if(
-        (keys["z"] ||
-         keys[" "] ||
-         keys["arrowup"]) &&
+        (
+            keys["z"] ||
+            keys[" "] ||
+            keys["arrowup"]
+        ) &&
         player.onGround
     ){
-
-        player.vy=player.jumpPower;
-
+        player.vy=
+            player.jumpPower;
         player.onGround=false;
-
     }
-
-
-    /* 重力 */
-
-    player.vy+=0.7;
-
-    player.y+=player.vy;
-
-
-    /* 地面 */
-
-    if(player.y+player.h>=groundY){
-
-        player.y=groundY-player.h;
-
+    player.vy+=
+        player.gravity;
+    player.y+=
+        player.vy;
+    /* =====================
+       地面
+    ===================== */
+    if(
+        player.y+player.h>=835
+    ){
+        player.y=
+            835-player.h;
         player.vy=0;
-
         player.onGround=true;
-
     }
-
-
-    /* 射撃 */
-
+    /* =====================
+       プレイヤー状態
+    ===================== */
+    if(player.invincible>0){
+        player.invincible--;
+    }
+    if(player.shield>0){
+        player.shield--;
+    }
+    if(player.shootCooldown>0){
+        player.shootCooldown--;
+    }
+    /* =====================
+       射撃
+    ===================== */
     if(
         keys["x"] ||
         keys["c"]
     ){
-
         shoot();
-
     }
-
-    if(player.shootCooldown>0){
-        player.shootCooldown--;
-    }
-
-    if(player.invincible>0){
-        player.invincible--;
-    }
-
-    if(player.shield>0){
-        player.shield--;
-    }
-
-
-    /* 弾 */
-
+    /* =====================
+       弾
+    ===================== */
     bullets.forEach(b=>{
         b.x+=b.speed;
+        b.y+=b.angle;
     });
-
-    bullets=bullets.filter(
-        b=>b.x<W+50
-    );
-
-
-    /* 敵 */
-
-    enemies.forEach(e=>{
-
-        e.x-=e.speed*difficulty;
-
-    });
-
-    enemies=enemies.filter(
-        e=>e.x>-100
-    );
-
-
-    /* 弾と敵 */
-
-    for(let bi=bullets.length-1;bi>=0;bi--){
-
-        const b=bullets[bi];
-
-        for(let ei=enemies.length-1;ei>=0;ei--){
-
-            const e=enemies[ei];
-
-            if(rectHit(b,e)){
-
-                bullets.splice(bi,1);
-
-                e.hp--;
-
-                explosion(
-                    b.x,
-                    b.y,
-                    "#ffcc00"
+    bullets=
+        bullets.filter(
+            b=>b.x<W+80
+        );
+    /* =====================
+       敵スポーン
+    ===================== */
+    spawnTimer--;
+    if(
+        !boss &&
+        stageKills<stageGoal()
+    ){
+        if(spawnTimer<=0){
+            spawnEnemy();
+            const interval=
+                Math.max(
+                    25,
+                    70-stage*5
                 );
-
-                if(e.hp<=0){
-
-                    enemies.splice(ei,1);
-
-                    combo++;
-                    comboTimer=120;
-
-                    const multiplier=Math.min(
-                        5,
-                        1+Math.floor(combo/5)
-                    );
-
-                    score+=100*multiplier;
-
-                }
-
-                break;
-
-            }
-
+            spawnTimer=interval;
         }
-
     }
-
-
-    /* 敵とプレイヤー */
-
-    for(let i=enemies.length-1;i>=0;i--){
-
-        if(rectHit(player,enemies[i])){
-
-            enemies.splice(i,1);
-
-            damagePlayer();
-
-        }
-
+    /* =====================
+       ボス条件
+    ===================== */
+    if(
+        stageKills>=stageGoal() &&
+        !boss &&
+        bossStage()
+    ){
+        spawnBoss();
     }
-
-
-    /* コンボ */
-
-    if(comboTimer>0){
-
-        comboTimer--;
-
-    }else{
-
-        combo=0;
-
+    /* =====================
+       ボスなし通常ステージ
+    ===================== */
+    if(
+        stageKills>=stageGoal() &&
+        !bossStage() &&
+        enemies.length===0
+    ){
+        state="stageclear";
+        document.getElementById(
+            "nextStageBtn"
+        ).style.display="block";
     }
-
-
-    /* コイン */
-
-    coinsObj.forEach(c=>{
-        c.x-=c.speed*difficulty;
+    /* =====================
+       敵移動
+    ===================== */
+    enemies.forEach(e=>{
+        e.x-=e.speed;
     });
-
-    for(let i=coinsObj.length-1;i>=0;i--){
-
-        const c=coinsObj[i];
-
+    /* =====================
+       敵削除
+    ===================== */
+    for(
+        let i=enemies.length-1;
+        i>=0;
+        i--
+    ){
+        if(enemies[i].x<-100){
+            enemies.splice(i,1);
+        }
+    }
+    /* =====================
+       弾 vs 敵
+    ===================== */
+    for(
+        let bi=bullets.length-1;
+        bi>=0;
+        bi--
+    ){
+        const bullet=
+            bullets[bi];
+        let hit=false;
+        for(
+            let ei=enemies.length-1;
+            ei>=0;
+            ei--
+        ){
+            const enemy=
+                enemies[ei];
+            if(rectHit(
+                bullet,
+                enemy
+            )){
+                enemy.hp-=
+                    bullet.damage;
+                bullets.splice(
+                    bi,
+                    1
+                );
+                explosion(
+                    bullet.x,
+                    bullet.y,
+                    7,
+                    3
+                );
+                hit=true;
+                if(enemy.hp<=0){
+                    killEnemy(
+                        enemy
+                    );
+                }
+                break;
+            }
+        }
+        if(hit) continue;
+        /* =====================
+           弾 vs ボス
+        ===================== */
+        if(
+            boss &&
+            rectHit(
+                bullet,
+                boss
+            )
+        ){
+            boss.hp-=
+                bullet.damage;
+            bullets.splice(
+                bi,
+                1
+            );
+            explosion(
+                bullet.x,
+                bullet.y,
+                8,
+                3
+            );
+            if(boss.hp<=0){
+                defeatBoss();
+            }
+        }
+    }
+    /* =====================
+       敵 vs プレイヤー
+    ===================== */
+    for(
+        let i=enemies.length-1;
+        i>=0;
+        i--
+    ){
+        if(
+            rectHit(
+                player,
+                enemies[i]
+            )
+        ){
+            enemies.splice(
+                i,
+                1
+            );
+            damagePlayer();
+        }
+    }
+    /* =====================
+       ボス
+    ===================== */
+    if(boss){
+        if(!boss.entered){
+            boss.x-=1.2;
+            if(boss.x<350){
+                boss.entered=true;
+            }
+        }else{
+            boss.x+=
+                Math.sin(
+                    elapsed*1.4
+                )*.8;
+        }
+        boss.attackTimer--;
+        if(boss.attackTimer<=0){
+            bossAttack();
+            boss.attackTimer=100;
+        }
+        if(
+            rectHit(
+                player,
+                boss
+            )
+        ){
+            damagePlayer();
+        }
+    }
+    /* =====================
+       ボス警告
+    ===================== */
+    if(bossWarning>0){
+        bossWarning--;
+    }
+    /* =====================
+       コンボ
+    ===================== */
+    if(comboTimer>0){
+        comboTimer--;
+    }else{
+        combo=0;
+    }
+    /* =====================
+       コイン
+    ===================== */
+    coinsObj.forEach(c=>{
+        c.x-=c.speed;
+    });
+    for(
+        let i=coinsObj.length-1;
+        i>=0;
+        i--
+    ){
+        const c=
+            coinsObj[i];
         const box={
             x:c.x-c.r,
             y:c.y-c.r,
             w:c.r*2,
             h:c.r*2
         };
-
-        if(rectHit(player,box)){
-
+        if(
+            rectHit(
+                player,
+                box
+            )
+        ){
             coins++;
-
             score+=50;
-
-            explosion(
+            textEffect(
+                "+50",
                 c.x,
                 c.y,
                 "#ffd700"
             );
-
-            coinsObj.splice(i,1);
-
-        }
-
-    }
-
-    coinsObj=coinsObj.filter(
-        c=>c.x>-50
-    );
-
-
-    /* パワーアップ */
-
-    powerups.forEach(p=>{
-        p.x-=p.speed*difficulty;
-    });
-
-    for(let i=powerups.length-1;i>=0;i--){
-
-        const p=powerups[i];
-
-        if(rectHit(player,p)){
-
-            player.shield=600;
-
-            score+=200;
-
             explosion(
+                c.x,
+                c.y,
+                8,
+                3
+            );
+            coinsObj.splice(
+                i,
+                1
+            );
+        }
+    }
+    coinsObj=
+        coinsObj.filter(
+            c=>c.x>-50
+        );
+    /* =====================
+       パワーアップ
+    ===================== */
+    powerups.forEach(p=>{
+        p.x-=p.speed;
+    });
+    for(
+        let i=powerups.length-1;
+        i>=0;
+        i--
+    ){
+        const p=
+            powerups[i];
+        if(
+            rectHit(
+                player,
+                p
+            )
+        ){
+            player.shield=
+                600;
+            score+=300;
+            textEffect(
+                "SHIELD!",
                 p.x,
                 p.y,
-                "#33ccff"
+                "#55ddff"
             );
-
-            powerups.splice(i,1);
-
+            powerups.splice(
+                i,
+                1
+            );
         }
-
     }
-
-
-    /* パーティクル */
-
+    /* =====================
+       ランダムアイテム
+    ===================== */
+    if(
+        Math.random()<.004
+    ){
+        spawnCoin();
+    }
+    if(
+        Math.random()<.0008
+    ){
+        spawnShield();
+    }
+    updateEffects();
+}
+/* =====================================================
+   ボス攻撃
+===================================================== */
+function bossAttack(){
+    for(let i=0;i<3;i++){
+        bullets.push({
+            x:boss.x,
+            y:
+                boss.y+60+i*25,
+            w:20,
+            h:7,
+            speed:-6,
+            damage:1,
+            angle:
+                (player.y-boss.y)*.001
+        });
+    }
+}
+/* =====================================================
+   エフェクト更新
+===================================================== */
+function updateEffects(){
     particles.forEach(p=>{
-
         p.x+=p.vx;
         p.y+=p.vy;
-
-        p.vy+=0.15;
-
+        p.vy+=.12;
         p.life--;
-
     });
-
-    particles=particles.filter(
-        p=>p.life>0
-    );
-
-
-    /* 雲 */
-
+    particles=
+        particles.filter(
+            p=>p.life>0
+        );
+    floatingTexts.forEach(t=>{
+        t.y-=.8;
+        t.life--;
+    });
+    floatingTexts=
+        floatingTexts.filter(
+            t=>t.life>0
+        );
     clouds.forEach(c=>{
-
         c.x-=c.speed;
-
         if(c.x+c.w<0){
-
             c.x=W+50;
-
         }
-
     });
-
-
-    /* アイテム出現 */
-
-    if(Math.random()<0.006){
-
-        spawnCoin();
-
+    if(flash>0){
+        flash--;
     }
-
-    if(Math.random()<0.0015){
-
-        spawnShield();
-
-    }
-
-}
-
-
-/* =========================
-   描画
-========================= */
-
-function draw(){
-
-    ctx.save();
-
-    /* 画面揺れ */
-
     if(shake>0){
-
+        shake*=.86;
+        if(shake<.3){
+            shake=0;
+        }
+    }
+}
+/* =====================================================
+   次ステージ
+===================================================== */
+function nextStage(){
+    stage++;
+    stageKills=0;
+    enemies=[];
+    bullets=[];
+    coinsObj=[];
+    powerups=[];
+    boss=null;
+    resetPlayer();
+    state="playing";
+    spawnTimer=40;
+    document.getElementById(
+        "nextStageBtn"
+    ).style.display="none";
+}
+/* =====================================================
+   武器強化
+===================================================== */
+function upgradeWeapon(){
+    const cost=
+        500*player.weaponLevel;
+    if(coins<cost){
+        textEffect(
+            "コイン不足!",
+            player.x,
+            player.y-40,
+            "#ff5555"
+        );
+        return;
+    }
+    coins-=cost;
+    player.weaponLevel++;
+    player.fireRate=
+        Math.max(
+            5,
+            player.fireRate-1
+        );
+    player.bulletDamage++;
+    score+=500;
+    textEffect(
+        "WEAPON UP!",
+        player.x,
+        player.y-40,
+        "#ffe600"
+    );
+}
+/* =====================================================
+   ゲームオーバー
+===================================================== */
+function gameOver(){
+    state="gameover";
+    document.getElementById(
+        "restartBtn"
+    ).style.display="block";
+}
+/* =====================================================
+   リスタート
+===================================================== */
+function restartGame(){
+    player.weaponLevel=1;
+    player.fireRate=11;
+    player.bulletDamage=1;
+    startGame();
+    document.getElementById(
+        "restartBtn"
+    ).style.display="none";
+}
+/* =====================================================
+   描画
+===================================================== */
+function draw(){
+    ctx.save();
+    /* 画面揺れ */
+    if(shake>0){
         ctx.translate(
             (Math.random()-.5)*shake,
             (Math.random()-.5)*shake
         );
-
-        shake*=.85;
-
-        if(shake<.3){
-            shake=0;
-        }
-
     }
-
-
-    /* 空 */
-
-    const sky=ctx.createLinearGradient(
-        0,0,0,H
+    /* =================================================
+       背景
+    ================================================= */
+    const sky=
+        ctx.createLinearGradient(
+            0,0,
+            0,H
+        );
+    sky.addColorStop(
+        0,
+        "#4cb9ef"
     );
-
-    sky.addColorStop(0,"#54bdf5");
-    sky.addColorStop(1,"#d9f5ff");
-
+    sky.addColorStop(
+        .6,
+        "#bdeaff"
+    );
+    sky.addColorStop(
+        1,
+        "#e8faff"
+    );
     ctx.fillStyle=sky;
-
-    ctx.fillRect(0,0,W,H);
-
-
-    /* 雲 */
-
-    ctx.fillStyle="rgba(255,255,255,.8)";
-
+    ctx.fillRect(
+        0,0,W,H
+    );
+    /* =================================================
+       太陽
+    ================================================= */
+    ctx.fillStyle=
+        "rgba(255,240,150,.8)";
+    ctx.beginPath();
+    ctx.arc(
+        430,
+        130,
+        55,
+        0,
+        Math.PI*2
+    );
+    ctx.fill();
+    /* =================================================
+       雲
+    ================================================= */
+    ctx.fillStyle=
+        "rgba(255,255,255,.75)";
     clouds.forEach(c=>{
-
         ctx.beginPath();
-
         ctx.arc(
             c.x,
             c.y,
@@ -843,283 +1234,123 @@ function draw(){
             0,
             Math.PI*2
         );
-
         ctx.arc(
-            c.x+c.w*.22,
-            c.y-15,
-            c.w*.27,
+            c.x+c.w*.25,
+            c.y-18,
+            c.w*.28,
             0,
             Math.PI*2
         );
-
         ctx.arc(
-            c.x+c.w*.48,
+            c.x+c.w*.5,
             c.y,
-            c.w*.23,
+            c.w*.22,
             0,
             Math.PI*2
         );
-
         ctx.fill();
-
     });
-
-
-    /* 遠景 */
-
-    ctx.fillStyle="#86b879";
-
+    /* =================================================
+       遠景
+    ================================================= */
+    ctx.fillStyle="#72a86e";
     ctx.beginPath();
-
-    ctx.moveTo(0,360);
-
-    for(let x=0;x<=W;x+=60){
-
+    ctx.moveTo(
+        0,
+        650
+    );
+    for(
+        let x=0;
+        x<=W;
+        x+=40
+    ){
         ctx.lineTo(
             x,
-            330+Math.sin(x*.025)*25
+            610+
+            Math.sin(x*.035)*35
         );
-
     }
-
     ctx.lineTo(W,H);
     ctx.lineTo(0,H);
-
     ctx.fill();
-
-
-    /* 地面 */
-
-    ctx.fillStyle="#5fa85f";
-
+    /* =================================================
+       地面
+    ================================================= */
+    ctx.fillStyle="#579957";
     ctx.fillRect(
         0,
-        groundY,
+        835,
         W,
-        H-groundY
+        H-835
     );
-
-    ctx.fillStyle="#714522";
-
+    ctx.fillStyle="#704523";
     ctx.fillRect(
         0,
-        groundY-10,
+        825,
         W,
         10
     );
-
-
-    /* 地面ライン */
-
-    ctx.strokeStyle="rgba(255,255,255,.15)";
+    /* 地面模様 */
+    ctx.strokeStyle=
+        "rgba(255,255,255,.13)";
     ctx.lineWidth=2;
-
-    for(let x=0;x<W;x+=45){
-
-        ctx.beginPath();
-
-        ctx.moveTo(x,groundY+25);
-        ctx.lineTo(x+20,groundY+25);
-
-        ctx.stroke();
-
-    }
-
-
-    /* プレイヤー */
-
-    if(
-        player.invincible===0 ||
-        Math.floor(player.invincible/5)%2===0
+    for(
+        let x=-20;
+        x<W+50;
+        x+=45
     ){
-
-        /* 体 */
-
-        ctx.fillStyle="#1769aa";
-
-        ctx.fillRect(
-            player.x,
-            player.y,
-            player.w,
-            player.h
-        );
-
-        /* 頭 */
-
-        ctx.fillStyle="#ffd1a9";
-
-        ctx.fillRect(
-            player.x+7,
-            player.y-18,
-            28,
-            25
-        );
-
-        /* 髪 */
-
-        ctx.fillStyle="#222";
-
-        ctx.fillRect(
-            player.x+7,
-            player.y-20,
-            28,
-            8
-        );
-
-        /* 目 */
-
-        ctx.fillStyle="#111";
-
-        ctx.fillRect(
-            player.x+27,
-            player.y-10,
-            4,
-            4
-        );
-
-        /* 銃 */
-
-        ctx.fillStyle="#333";
-
-        ctx.fillRect(
-            player.x+player.w-2,
-            player.y+22,
-            25,
-            7
-        );
-
-    }
-
-
-    /* シールド */
-
-    if(player.shield>0){
-
-        ctx.strokeStyle="#33ccff";
-        ctx.lineWidth=4;
-
         ctx.beginPath();
-
-        ctx.arc(
-            player.x+player.w/2,
-            player.y+player.h/2,
-            40,
-            0,
-            Math.PI*2
+        ctx.moveTo(
+            x,
+            860
         );
-
+        ctx.lineTo(
+            x+20,
+            860
+        );
         ctx.stroke();
-
     }
-
-
-    /* 弾 */
-
+    /* =================================================
+       敵
+    ================================================= */
+    enemies.forEach(
+        drawEnemy
+    );
+    /* =================================================
+       ボス
+    ================================================= */
+    if(boss){
+        drawBoss();
+    }
+    /* =================================================
+       プレイヤー
+    ================================================= */
+    drawPlayer();
+    /* =================================================
+       弾
+    ================================================= */
     bullets.forEach(b=>{
-
         ctx.fillStyle="#ffe600";
-
         ctx.fillRect(
             b.x,
             b.y,
             b.w,
             b.h
         );
-
         ctx.fillStyle="#fff";
-
         ctx.fillRect(
             b.x,
             b.y,
             5,
             b.h
         );
-
     });
-
-
-    /* 敵 */
-
-    enemies.forEach(e=>{
-
-        ctx.fillStyle=e.color;
-
-        ctx.fillRect(
-            e.x,
-            e.y,
-            e.w,
-            e.h
-        );
-
-        /* 目 */
-
-        ctx.fillStyle="#fff";
-
-        ctx.fillRect(
-            e.x+8,
-            e.y+10,
-            8,
-            8
-        );
-
-        ctx.fillRect(
-            e.x+e.w-16,
-            e.y+10,
-            8,
-            8
-        );
-
-        ctx.fillStyle="#111";
-
-        ctx.fillRect(
-            e.x+10,
-            e.y+12,
-            4,
-            4
-        );
-
-        ctx.fillRect(
-            e.x+e.w-14,
-            e.y+12,
-            4,
-            4
-        );
-
-        /* HPバー */
-
-        if(e.maxHp>1){
-
-            ctx.fillStyle="#222";
-
-            ctx.fillRect(
-                e.x,
-                e.y-9,
-                e.w,
-                5
-            );
-
-            ctx.fillStyle="#4cff4c";
-
-            ctx.fillRect(
-                e.x,
-                e.y-9,
-                e.w*(e.hp/e.maxHp),
-                5
-            );
-
-        }
-
-    });
-
-
-    /* コイン */
-
+    /* =================================================
+       コイン
+    ================================================= */
     coinsObj.forEach(c=>{
-
         ctx.fillStyle="#ffd700";
-
         ctx.beginPath();
-
         ctx.arc(
             c.x,
             c.y,
@@ -1127,323 +1358,632 @@ function draw(){
             0,
             Math.PI*2
         );
-
         ctx.fill();
-
-        ctx.fillStyle="#9b7200";
-
-        ctx.font="bold 12px Arial";
-
+        ctx.fillStyle="#8a6700";
+        ctx.font="bold 14px Arial";
         ctx.textAlign="center";
-
         ctx.fillText(
             "$",
             c.x,
-            c.y+4
+            c.y+5
         );
-
         ctx.textAlign="left";
-
     });
-
-
-    /* パワーアップ */
-
+    /* =================================================
+       パワーアップ
+    ================================================= */
     powerups.forEach(p=>{
-
-        ctx.fillStyle="#33ccff";
-
+        ctx.fillStyle="#36d7ff";
         ctx.beginPath();
-
         ctx.arc(
-            p.x+p.w/2,
-            p.y+p.h/2,
-            16,
+            p.x+14,
+            p.y+14,
+            18,
             0,
             Math.PI*2
         );
-
         ctx.fill();
-
         ctx.fillStyle="#fff";
-
-        ctx.font="bold 17px Arial";
-
+        ctx.font="bold 19px Arial";
         ctx.fillText(
             "S",
             p.x+8,
-            p.y+18
+            p.y+20
         );
-
     });
-
-
-    /* 爆発 */
-
+    /* =================================================
+       パーティクル
+    ================================================= */
     particles.forEach(p=>{
-
         ctx.globalAlpha=
-            Math.max(0,p.life/40);
-
-        ctx.fillStyle=p.color;
-
+            Math.max(
+                0,
+                p.life/p.maxLife
+            );
+        ctx.fillStyle="#ffcc00";
         ctx.fillRect(
             p.x,
             p.y,
             p.size,
             p.size
         );
-
     });
-
     ctx.globalAlpha=1;
-
-
-    /* UI */
-
-    ctx.fillStyle="rgba(0,0,0,.55)";
-
-    ctx.fillRect(
-        15,
-        15,
-        280,
-        115
-    );
-
-    ctx.fillStyle="#fff";
-
-    ctx.font="bold 23px Arial";
-
-    ctx.fillText(
-        "RED OR DEAD 2",
-        28,
-        43
-    );
-
-    ctx.font="bold 20px Arial";
-
-    ctx.fillText(
-        "SCORE  "+score,
-        28,
-        72
-    );
-
-    ctx.fillText(
-        "COIN   "+coins,
-        160,
-        72
-    );
-
-
-    /* HP */
-
-    ctx.fillStyle="#333";
-
-    ctx.fillRect(
-        28,
-        91,
-        200,
-        16
-    );
-
-    ctx.fillStyle="#ff3030";
-
-    ctx.fillRect(
-        28,
-        91,
-        200*(player.hp/player.maxHp),
-        16
-    );
-
-    ctx.strokeStyle="#fff";
-
-    ctx.strokeRect(
-        28,
-        91,
-        200,
-        16
-    );
-
-
-    /* コンボ */
-
-    if(combo>=2){
-
-        ctx.fillStyle="#ffeb3b";
-
-        ctx.font="bold 28px Arial";
-
+    /* =================================================
+       浮遊テキスト
+    ================================================= */
+    floatingTexts.forEach(t=>{
+        ctx.globalAlpha=
+            Math.min(
+                1,
+                t.life/20
+            );
+        ctx.fillStyle=t.color;
+        ctx.font=
+            "bold 22px Arial";
         ctx.fillText(
-            combo+" COMBO!",
-            W-220,
-            50
+            t.text,
+            t.x,
+            t.y
         );
-
-        const multiplier=Math.min(
-            5,
-            1+Math.floor(combo/5)
+    });
+    ctx.globalAlpha=1;
+    /* =================================================
+       UI
+    ================================================= */
+    drawUI();
+    /* =================================================
+       ボス警告
+    ================================================= */
+    if(
+        bossWarning>0 &&
+        Math.floor(
+            bossWarning/10
+        )%2===0
+    ){
+        ctx.fillStyle=
+            "rgba(180,0,0,.75)";
+        ctx.fillRect(
+            0,
+            300,
+            W,
+            100
         );
-
-        ctx.font="bold 18px Arial";
-
+        ctx.fillStyle="#fff";
+        ctx.textAlign="center";
+        ctx.font=
+            "bold 42px Arial";
         ctx.fillText(
-            "×"+multiplier+" SCORE",
-            W-180,
-            78
+            "WARNING!",
+            W/2,
+            360
         );
-
+        ctx.font=
+            "bold 20px Arial";
+        ctx.fillText(
+            "BOSS APPROACHING",
+            W/2,
+            390
+        );
+        ctx.textAlign="left";
     }
-
-
-    /* シールド表示 */
-
-    if(player.shield>0){
-
-        ctx.fillStyle="#33ccff";
-
-        ctx.font="bold 18px Arial";
-
-        ctx.fillText(
-            "SHIELD",
-            W-130,
-            110
-        );
-
+    /* =================================================
+       タイトル
+    ================================================= */
+    if(state==="title"){
+        drawTitle();
     }
-
-
-    /* 経過時間 */
-
-    ctx.fillStyle="rgba(0,0,0,.4)";
-
-    ctx.font="16px Arial";
-
-    ctx.fillText(
-        "TIME "+Math.floor(elapsed)+"s",
-        W-100,
-        25
-    );
-
-
-    /* ゲームオーバー */
-
-    if(gameOver){
-
-        ctx.fillStyle="rgba(0,0,0,.72)";
-
+    /* =================================================
+       ステージクリア
+    ================================================= */
+    if(state==="stageclear"){
+        drawStageClear();
+    }
+    /* =================================================
+       GAME OVER
+    ================================================= */
+    if(state==="gameover"){
+        drawGameOver();
+    }
+    /* =================================================
+       ダメージフラッシュ
+    ================================================= */
+    if(flash>0){
+        ctx.fillStyle=
+            "rgba(255,0,0,.15)";
         ctx.fillRect(
             0,
             0,
             W,
             H
         );
-
-        ctx.textAlign="center";
-
-        ctx.fillStyle="#ff3030";
-
-        ctx.font="bold 64px Arial";
-
-        ctx.fillText(
-            "GAME OVER",
-            W/2,
-            220
-        );
-
-        ctx.fillStyle="#fff";
-
-        ctx.font="bold 30px Arial";
-
-        ctx.fillText(
-            "SCORE  "+score,
-            W/2,
-            275
-        );
-
-        ctx.font="20px Arial";
-
-        ctx.fillText(
-            "敵を倒してさらに高得点を狙え！",
-            W/2,
-            315
-        );
-
-        ctx.textAlign="left";
-
     }
-
-
     ctx.restore();
-
 }
-
-
-/* =========================
-   ゲーム再スタート
-========================= */
-
-function restartGame(){
-
-    player.x=100;
-    player.y=groundY-player.h;
-
-    player.vx=0;
-    player.vy=0;
-
-    player.hp=player.maxHp;
-
-    player.shield=0;
-    player.invincible=0;
-
-    bullets=[];
-    enemies=[];
-    particles=[];
-    coinsObj=[];
-    powerups=[];
-
-    score=0;
-    coins=0;
-    combo=0;
-    comboTimer=0;
-    elapsed=0;
-
-    gameOver=false;
-
-    document.getElementById(
-        "restart"
-    ).style.display="none";
-
-}
-
-
-/* =========================
-   敵生成タイマー
-========================= */
-
-setInterval(()=>{
-
-    if(!gameOver){
-
-        const interval=Math.max(
-            450,
-            1500-elapsed*12
-        );
-
-        spawnEnemy();
-
+/* =====================================================
+   プレイヤー描画
+===================================================== */
+function drawPlayer(){
+    if(
+        player.invincible>0 &&
+        Math.floor(
+            player.invincible/6
+        )%2===1
+    ){
+        return;
     }
-
-},900);
-
-
-/* =========================
-   スマホ操作
-========================= */
-
-function holdButton(id,key){
-
-    const btn=document.getElementById(id);
-
+    /* 体 */
+    ctx.fillStyle="#1769aa";
+    ctx.fillRect(
+        player.x,
+        player.y,
+        player.w,
+        player.h
+    );
+    /* 胸 */
+    ctx.fillStyle="#0d4777";
+    ctx.fillRect(
+        player.x+7,
+        player.y+18,
+        32,
+        20
+    );
+    /* 頭 */
+    ctx.fillStyle="#ffd0a6";
+    ctx.fillRect(
+        player.x+7,
+        player.y-22,
+        31,
+        28
+    );
+    /* 髪 */
+    ctx.fillStyle="#222";
+    ctx.fillRect(
+        player.x+6,
+        player.y-25,
+        33,
+        11
+    );
+    /* 目 */
+    ctx.fillStyle="#111";
+    ctx.fillRect(
+        player.x+29,
+        player.y-10,
+        4,
+        4
+    );
+    /* 銃 */
+    ctx.fillStyle="#292929";
+    ctx.fillRect(
+        player.x+36,
+        player.y+23,
+        28,
+        8
+    );
+    /* 銃口 */
+    ctx.fillStyle="#111";
+    ctx.fillRect(
+        player.x+62,
+        player.y+20,
+        8,
+        14
+    );
+    /* シールド */
+    if(player.shield>0){
+        ctx.strokeStyle=
+            "rgba(50,220,255,.9)";
+        ctx.lineWidth=4;
+        ctx.beginPath();
+        ctx.arc(
+            player.x+player.w/2,
+            player.y+player.h/2,
+            52,
+            0,
+            Math.PI*2
+        );
+        ctx.stroke();
+    }
+}
+/* =====================================================
+   敵描画
+===================================================== */
+function drawEnemy(e){
+    ctx.fillStyle=e.color;
+    ctx.fillRect(
+        e.x,
+        e.y,
+        e.w,
+        e.h
+    );
+    /* 目 */
+    ctx.fillStyle="#fff";
+    ctx.fillRect(
+        e.x+8,
+        e.y+10,
+        9,
+        9
+    );
+    ctx.fillRect(
+        e.x+e.w-17,
+        e.y+10,
+        9,
+        9
+    );
+    ctx.fillStyle="#111";
+    ctx.fillRect(
+        e.x+11,
+        e.y+13,
+        4,
+        4
+    );
+    ctx.fillRect(
+        e.x+e.w-14,
+        e.y+13,
+        4,
+        4
+    );
+    /* HPバー */
+    if(e.maxHp>1){
+        ctx.fillStyle="#222";
+        ctx.fillRect(
+            e.x,
+            e.y-12,
+            e.w,
+            6
+        );
+        ctx.fillStyle="#45e04d";
+        ctx.fillRect(
+            e.x,
+            e.y-12,
+            e.w*
+            (e.hp/e.maxHp),
+            6
+        );
+    }
+    /* Eliteマーク */
+    if(e.type==="elite"){
+        ctx.fillStyle="#ff3030";
+        ctx.font=
+            "bold 15px Arial";
+        ctx.fillText(
+            "ELITE",
+            e.x+2,
+            e.y-18
+        );
+    }
+}
+/* =====================================================
+   ボス描画
+===================================================== */
+function drawBoss(){
+    /* HPバー */
+    ctx.fillStyle="rgba(0,0,0,.7)";
+    ctx.fillRect(
+        35,
+        145,
+        W-70,
+        22
+    );
+    ctx.fillStyle="#ff3030";
+    ctx.fillRect(
+        35,
+        145,
+        (W-70)*
+        (boss.hp/boss.maxHp),
+        22
+    );
+    ctx.strokeStyle="#fff";
+    ctx.strokeRect(
+        35,
+        145,
+        W-70,
+        22
+    );
+    ctx.fillStyle="#fff";
+    ctx.font=
+        "bold 18px Arial";
+    ctx.fillText(
+        "BOSS",
+        35,
+        135
+    );
+    /* 本体 */
+    ctx.fillStyle="#5b1720";
+    ctx.fillRect(
+        boss.x,
+        boss.y,
+        boss.w,
+        boss.h
+    );
+    /* 装甲 */
+    ctx.fillStyle="#222";
+    ctx.fillRect(
+        boss.x+15,
+        boss.y+30,
+        100,
+        90
+    );
+    /* 目 */
+    ctx.fillStyle="#ff3030";
+    ctx.fillRect(
+        boss.x+30,
+        boss.y+50,
+        18,
+        18
+    );
+    ctx.fillRect(
+        boss.x+82,
+        boss.y+50,
+        18,
+        18
+    );
+    /* ボス銃 */
+    ctx.fillStyle="#111";
+    ctx.fillRect(
+        boss.x-30,
+        boss.y+90,
+        45,
+        15
+    );
+}
+/* =====================================================
+   UI描画
+===================================================== */
+function drawUI(){
+    /* 上部パネル */
+    ctx.fillStyle=
+        "rgba(0,0,0,.55)";
+    ctx.fillRect(
+        15,
+        15,
+        W-30,
+        105
+    );
+    ctx.fillStyle="#fff";
+    ctx.font=
+        "bold 22px Arial";
+    ctx.fillText(
+        "RED OR DEAD 2",
+        28,
+        43
+    );
+    ctx.font=
+        "bold 19px Arial";
+    ctx.fillText(
+        "SCORE "+score,
+        28,
+        72
+    );
+    ctx.fillText(
+        "💰 "+coins,
+        210,
+        72
+    );
+    ctx.fillText(
+        "STAGE "+stage,
+        365,
+        72
+    );
+    /* HP */
+    ctx.fillStyle="#222";
+    ctx.fillRect(
+        28,
+        88,
+        210,
+        17
+    );
+    ctx.fillStyle="#ff3030";
+    ctx.fillRect(
+        28,
+        88,
+        210*
+        (player.hp/player.maxHp),
+        17
+    );
+    ctx.strokeStyle="#fff";
+    ctx.strokeRect(
+        28,
+        88,
+        210,
+        17
+    );
+    /* 進行度 */
+    if(!boss){
+        ctx.fillStyle="#fff";
+        ctx.font=
+            "14px Arial";
+        ctx.fillText(
+            "ENEMIES "+
+            stageKills+
+            " / "+
+            stageGoal(),
+            280,
+            101
+        );
+    }
+    /* コンボ */
+    if(combo>=2){
+        ctx.fillStyle="#ffe600";
+        ctx.font=
+            "bold 27px Arial";
+        ctx.fillText(
+            combo+" COMBO",
+            28,
+            165
+        );
+        const multiplier=
+            Math.min(
+                5,
+                1+Math.floor(combo/5)
+            );
+        ctx.font=
+            "bold 18px Arial";
+        ctx.fillText(
+            "×"+multiplier,
+            190,
+            165
+        );
+    }
+    /* 武器レベル */
+    ctx.fillStyle="#fff";
+    ctx.font=
+        "bold 16px Arial";
+    ctx.fillText(
+        "WEAPON Lv."+player.weaponLevel,
+        28,
+        195
+    );
+    /* シールド */
+    if(player.shield>0){
+        ctx.fillStyle="#45dcff";
+        ctx.fillText(
+            "SHIELD",
+            200,
+            195
+        );
+    }
+}
+/* =====================================================
+   タイトル画面
+===================================================== */
+function drawTitle(){
+    ctx.fillStyle=
+        "rgba(0,0,0,.65)";
+    ctx.fillRect(
+        0,
+        0,
+        W,
+        H
+    );
+    ctx.textAlign="center";
+    ctx.fillStyle="#ff3030";
+    ctx.font=
+        "bold 57px Arial";
+    ctx.fillText(
+        "RED",
+        W/2,
+        280
+    );
+    ctx.fillStyle="#fff";
+    ctx.font=
+        "bold 48px Arial";
+    ctx.fillText(
+        "OR DEAD",
+        W/2,
+        340
+    );
+    ctx.fillStyle="#ffe600";
+    ctx.font=
+        "bold 25px Arial";
+    ctx.fillText(
+        "2",
+        W/2+115,
+        340
+    );
+    ctx.fillStyle="#fff";
+    ctx.font=
+        "18px Arial";
+    ctx.fillText(
+        "VERTICAL EDITION",
+        W/2,
+        385
+    );
+    ctx.font=
+        "16px Arial";
+    ctx.fillText(
+        "敵を倒せ。強化しろ。ボスを倒せ。",
+        W/2,
+        430
+    );
+    ctx.textAlign="left";
+}
+/* =====================================================
+   ステージクリア
+===================================================== */
+function drawStageClear(){
+    ctx.fillStyle=
+        "rgba(0,0,0,.68)";
+    ctx.fillRect(
+        0,
+        0,
+        W,
+        H
+    );
+    ctx.textAlign="center";
+    ctx.fillStyle="#ffe600";
+    ctx.font=
+        "bold 45px Arial";
+    ctx.fillText(
+        bossStage()
+            ? "BOSS DEFEATED!"
+            : "STAGE CLEAR!",
+        W/2,
+        350
+    );
+    ctx.fillStyle="#fff";
+    ctx.font=
+        "bold 25px Arial";
+    ctx.fillText(
+        "SCORE  "+score,
+        W/2,
+        400
+    );
+    ctx.font=
+        "18px Arial";
+    ctx.fillText(
+        "COIN  "+coins,
+        W/2,
+        435
+    );
+    ctx.textAlign="left";
+}
+/* =====================================================
+   GAME OVER
+===================================================== */
+function drawGameOver(){
+    ctx.fillStyle=
+        "rgba(0,0,0,.75)";
+    ctx.fillRect(
+        0,
+        0,
+        W,
+        H
+    );
+    ctx.textAlign="center";
+    ctx.fillStyle="#ff3030";
+    ctx.font=
+        "bold 52px Arial";
+    ctx.fillText(
+        "GAME OVER",
+        W/2,
+        350
+    );
+    ctx.fillStyle="#fff";
+    ctx.font=
+        "bold 28px Arial";
+    ctx.fillText(
+        "SCORE "+score,
+        W/2,
+        405
+    );
+    ctx.font=
+        "20px Arial";
+    ctx.fillText(
+        "STAGE "+stage,
+        W/2,
+        440
+    );
+    ctx.textAlign="left";
+}
+/* =====================================================
+   ボタン操作
+===================================================== */
+function holdButton(
+    id,
+    key
+){
+    const btn=
+        document.getElementById(id);
     btn.addEventListener(
         "pointerdown",
         e=>{
@@ -1451,7 +1991,6 @@ function holdButton(id,key){
             keys[key]=true;
         }
     );
-
     btn.addEventListener(
         "pointerup",
         e=>{
@@ -1459,73 +1998,80 @@ function holdButton(id,key){
             keys[key]=false;
         }
     );
-
     btn.addEventListener(
         "pointercancel",
         ()=>{
             keys[key]=false;
         }
     );
-
     btn.addEventListener(
         "pointerleave",
         ()=>{
             keys[key]=false;
         }
     );
-
 }
-
-holdButton("leftBtn","arrowleft");
-holdButton("rightBtn","arrowright");
-holdButton("shootBtn","x");
-
-
-document.getElementById(
-    "jumpBtn"
-).addEventListener(
+holdButton(
+    "leftBtn",
+    "arrowleft"
+);
+holdButton(
+    "rightBtn",
+    "arrowright"
+);
+holdButton(
+    "shootBtn",
+    "x"
+);
+/* ジャンプ */
+document
+.getElementById("jumpBtn")
+.addEventListener(
     "pointerdown",
     e=>{
-
         e.preventDefault();
-
-        if(player.onGround){
-
-            player.vy=player.jumpPower;
-
+        if(
+            state==="playing" &&
+            player.onGround
+        ){
+            player.vy=
+                player.jumpPower;
             player.onGround=false;
-
         }
-
     }
 );
-
-
-document.getElementById(
-    "restart"
-).addEventListener(
+/* =====================================================
+   ボタン
+===================================================== */
+document
+.getElementById("startBtn")
+.addEventListener(
+    "click",
+    startGame
+);
+document
+.getElementById("restartBtn")
+.addEventListener(
     "click",
     restartGame
 );
-
-
-/* =========================
-   ゲームループ
-========================= */
-
+document
+.getElementById("nextStageBtn")
+.addEventListener(
+    "click",
+    nextStage
+);
+/* =====================================================
+   メインループ
+===================================================== */
 function loop(){
-
     update();
-
     draw();
-
-    requestAnimationFrame(loop);
-
+    requestAnimationFrame(
+        loop
+    );
 }
-
 loop();
-
 </script>
-
 </body>
 </html>
