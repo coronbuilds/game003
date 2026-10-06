@@ -2,214 +2,1529 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport"
+content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+
 <title>RED OR DEAD 2</title>
+
 <style>
-body{
-    margin:0;
-    background:#111;
-    overflow:hidden;
-    font-family:sans-serif;
+*{
+    box-sizing:border-box;
+    -webkit-tap-highlight-color:transparent;
 }
+
+html,body{
+    margin:0;
+    width:100%;
+    height:100%;
+    overflow:hidden;
+    background:#111;
+    font-family:Arial,sans-serif;
+}
+
+body{
+    display:flex;
+    justify-content:center;
+    align-items:center;
+}
+
+#gameWrap{
+    position:relative;
+    width:min(100vw,900px);
+    aspect-ratio:900/500;
+}
+
 canvas{
+    width:100%;
+    height:100%;
     display:block;
-    margin:auto;
-    background:linear-gradient(#6ec6ff,#bde7ff);
+    background:#82d4ff;
+    touch-action:none;
+}
+
+/* スマホ操作 */
+.controls{
+    position:absolute;
+    left:0;
+    right:0;
+    bottom:15px;
+    display:flex;
+    justify-content:space-between;
+    padding:0 18px;
+    pointer-events:none;
+}
+
+.leftControls,
+.rightControls{
+    display:flex;
+    gap:12px;
+    pointer-events:auto;
+}
+
+.controlBtn{
+    width:64px;
+    height:64px;
+    border-radius:50%;
+    border:2px solid rgba(255,255,255,.7);
+    background:rgba(0,0,0,.45);
+    color:white;
+    font-size:28px;
+    font-weight:bold;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    user-select:none;
+    touch-action:none;
+}
+
+.shootBtn{
+    width:76px;
+    height:76px;
+    background:rgba(180,0,0,.65);
+    font-size:24px;
+}
+
+.jumpBtn{
+    background:rgba(0,80,180,.6);
+}
+
+/* ゲームオーバー用 */
+#restart{
+    position:absolute;
+    left:50%;
+    top:62%;
+    transform:translate(-50%,-50%);
+    display:none;
+    border:0;
+    border-radius:12px;
+    padding:14px 30px;
+    font-size:22px;
+    font-weight:bold;
+    background:white;
+    color:#111;
 }
 </style>
 </head>
+
 <body>
+
+<div id="gameWrap">
 
 <canvas id="game" width="900" height="500"></canvas>
 
+<div class="controls">
+
+    <div class="leftControls">
+        <div class="controlBtn" id="leftBtn">◀</div>
+        <div class="controlBtn" id="rightBtn">▶</div>
+    </div>
+
+    <div class="rightControls">
+        <div class="controlBtn jumpBtn" id="jumpBtn">▲</div>
+        <div class="controlBtn shootBtn" id="shootBtn">🔥</div>
+    </div>
+
+</div>
+
+<button id="restart">もう一度プレイ</button>
+
+</div>
+
 <script>
+
+/* =========================
+   基本設定
+========================= */
+
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
+
+const W = canvas.width;
+const H = canvas.height;
+
+const groundY = 410;
+
+let gameOver = false;
+let score = 0;
+let coins = 0;
+let combo = 0;
+let comboTimer = 0;
+let elapsed = 0;
+let shake = 0;
+
+let bullets = [];
+let enemies = [];
+let particles = [];
+let clouds = [];
+let coinsObj = [];
+let powerups = [];
+
+
+/* =========================
+   キー入力
+========================= */
 
 const keys = {};
 
 document.addEventListener("keydown",e=>{
     keys[e.key.toLowerCase()] = true;
+
+    if(
+        ["arrowleft","arrowright"," ","z","x"].includes(
+            e.key.toLowerCase()
+        )
+    ){
+        e.preventDefault();
+    }
+
+    if(e.key.toLowerCase()==="r" && gameOver){
+        restartGame();
+    }
 });
 
 document.addEventListener("keyup",e=>{
     keys[e.key.toLowerCase()] = false;
 });
 
+
+/* =========================
+   プレイヤー
+========================= */
+
 const player = {
+
     x:100,
-    y:350,
-    w:40,
-    h:60,
+    y:groundY-62,
+
+    w:42,
+    h:62,
+
     vx:0,
     vy:0,
-    hp:3,
-    onGround:false
+
+    hp:5,
+    maxHp:5,
+
+    speed:5.5,
+
+    jumpPower:-13,
+
+    onGround:false,
+
+    invincible:0,
+
+    shield:0,
+
+    shootCooldown:0
 };
 
-const groundY = 410;
 
-let bullets = [];
-let enemies = [];
-let score = 0;
-let gameOver = false;
+/* =========================
+   雲
+========================= */
+
+for(let i=0;i<8;i++){
+
+    clouds.push({
+        x:Math.random()*W,
+        y:40+Math.random()*130,
+        w:70+Math.random()*100,
+        speed:.2+Math.random()*.3
+    });
+
+}
+
+
+/* =========================
+   発射
+========================= */
 
 function shoot(){
+
+    if(gameOver) return;
+
+    if(player.shootCooldown>0) return;
+
     bullets.push({
-        x:player.x + player.w,
-        y:player.y + 20,
-        w:12,
-        h:4,
-        speed:10
+
+        x:player.x+player.w,
+        y:player.y+20,
+
+        w:18,
+        h:5,
+
+        speed:12
+
     });
+
+    player.shootCooldown=8;
+
 }
 
-document.addEventListener("keydown",e=>{
-    if(e.key.toLowerCase()==="x" && !gameOver){
-        shoot();
-    }
-});
+
+/* =========================
+   敵生成
+========================= */
 
 function spawnEnemy(){
-    enemies.push({
-        x:canvas.width + 50,
-        y:360,
-        w:40,
-        h:50,
-        speed:3 + Math.random()*2
-    });
+
+    const type=Math.random();
+
+    if(type<0.65){
+
+        enemies.push({
+
+            type:"normal",
+
+            x:W+50,
+            y:groundY-50,
+
+            w:42,
+            h:50,
+
+            hp:1,
+            maxHp:1,
+
+            speed:3+Math.random()*1.5,
+
+            color:"#e3262e"
+
+        });
+
+    }else if(type<0.88){
+
+        enemies.push({
+
+            type:"fast",
+
+            x:W+50,
+            y:groundY-38,
+
+            w:32,
+            h:38,
+
+            hp:1,
+            maxHp:1,
+
+            speed:5+Math.random()*2,
+
+            color:"#ff7b00"
+
+        });
+
+    }else{
+
+        enemies.push({
+
+            type:"tank",
+
+            x:W+50,
+            y:groundY-70,
+
+            w:55,
+            h:70,
+
+            hp:3,
+            maxHp:3,
+
+            speed:1.5,
+
+            color:"#7d1fa2"
+
+        });
+
+    }
+
 }
 
-setInterval(()=>{
-    if(!gameOver){
-        spawnEnemy();
+
+/* =========================
+   アイテム
+========================= */
+
+function spawnCoin(){
+
+    coinsObj.push({
+
+        x:W+30,
+        y:280+Math.random()*80,
+
+        r:10,
+
+        speed:3
+
+    });
+
+}
+
+function spawnShield(){
+
+    powerups.push({
+
+        x:W+30,
+        y:300,
+
+        w:24,
+        h:24,
+
+        speed:3,
+
+        type:"shield"
+
+    });
+
+}
+
+
+/* =========================
+   爆発
+========================= */
+
+function explosion(x,y,color="#ffcc00"){
+
+    for(let i=0;i<18;i++){
+
+        const angle=Math.random()*Math.PI*2;
+        const speed=2+Math.random()*5;
+
+        particles.push({
+
+            x,
+            y,
+
+            vx:Math.cos(angle)*speed,
+            vy:Math.sin(angle)*speed,
+
+            life:30+Math.random()*20,
+
+            size:2+Math.random()*5,
+
+            color
+
+        });
+
     }
-},1500);
+
+    shake=8;
+
+}
+
+
+/* =========================
+   当たり判定
+========================= */
 
 function rectHit(a,b){
-    return (
+
+    return(
+
         a.x < b.x+b.w &&
         a.x+a.w > b.x &&
         a.y < b.y+b.h &&
         a.y+a.h > b.y
+
     );
+
 }
+
+
+/* =========================
+   ダメージ
+========================= */
+
+function damagePlayer(){
+
+    if(player.invincible>0) return;
+
+    if(player.shield>0){
+
+        player.shield=0;
+        player.invincible=50;
+
+        explosion(
+            player.x+player.w/2,
+            player.y+player.h/2,
+            "#33ccff"
+        );
+
+        return;
+    }
+
+    player.hp--;
+
+    player.invincible=70;
+
+    combo=0;
+
+    shake=12;
+
+    explosion(
+        player.x+player.w/2,
+        player.y+player.h/2,
+        "#ff3333"
+    );
+
+    if(player.hp<=0){
+
+        gameOver=true;
+
+        document.getElementById("restart").style.display="block";
+
+    }
+
+}
+
+
+/* =========================
+   更新
+========================= */
 
 function update(){
 
     if(gameOver) return;
 
-    player.vx = 0;
+    elapsed+=1/60;
+
+    /* 難易度 */
+
+    const difficulty=1+elapsed/45;
+
+
+    /* 移動 */
+
+    player.vx=0;
 
     if(keys["arrowleft"]){
-        player.vx = -5;
+        player.vx=-player.speed;
     }
 
     if(keys["arrowright"]){
-        player.vx = 5;
+        player.vx=player.speed;
     }
 
-    if(keys["z"] && player.onGround){
-        player.vy = -13;
-        player.onGround = false;
+    player.x+=player.vx;
+
+    player.x=Math.max(
+        10,
+        Math.min(W-player.w-10,player.x)
+    );
+
+
+    /* ジャンプ */
+
+    if(
+        (keys["z"] ||
+         keys[" "] ||
+         keys["arrowup"]) &&
+        player.onGround
+    ){
+
+        player.vy=player.jumpPower;
+
+        player.onGround=false;
+
     }
 
-    player.x += player.vx;
 
-    player.vy += 0.7;
-    player.y += player.vy;
+    /* 重力 */
 
-    if(player.y + player.h >= groundY){
-        player.y = groundY - player.h;
-        player.vy = 0;
-        player.onGround = true;
+    player.vy+=0.7;
+
+    player.y+=player.vy;
+
+
+    /* 地面 */
+
+    if(player.y+player.h>=groundY){
+
+        player.y=groundY-player.h;
+
+        player.vy=0;
+
+        player.onGround=true;
+
     }
+
+
+    /* 射撃 */
+
+    if(
+        keys["x"] ||
+        keys["c"]
+    ){
+
+        shoot();
+
+    }
+
+    if(player.shootCooldown>0){
+        player.shootCooldown--;
+    }
+
+    if(player.invincible>0){
+        player.invincible--;
+    }
+
+    if(player.shield>0){
+        player.shield--;
+    }
+
+
+    /* 弾 */
 
     bullets.forEach(b=>{
-        b.x += b.speed;
+        b.x+=b.speed;
     });
 
-    bullets = bullets.filter(b=>b.x < canvas.width+50);
+    bullets=bullets.filter(
+        b=>b.x<W+50
+    );
 
-    enemies.forEach(enemy=>{
-        enemy.x -= enemy.speed;
+
+    /* 敵 */
+
+    enemies.forEach(e=>{
+
+        e.x-=e.speed*difficulty;
+
     });
 
-    enemies = enemies.filter(e=>e.x > -100);
+    enemies=enemies.filter(
+        e=>e.x>-100
+    );
 
-    bullets.forEach((bullet,bi)=>{
-        enemies.forEach((enemy,ei)=>{
-            if(rectHit(bullet,enemy)){
+
+    /* 弾と敵 */
+
+    for(let bi=bullets.length-1;bi>=0;bi--){
+
+        const b=bullets[bi];
+
+        for(let ei=enemies.length-1;ei>=0;ei--){
+
+            const e=enemies[ei];
+
+            if(rectHit(b,e)){
+
                 bullets.splice(bi,1);
-                enemies.splice(ei,1);
-                score += 100;
-            }
-        });
-    });
 
-    enemies.forEach((enemy,ei)=>{
-        if(rectHit(player,enemy)){
-            enemies.splice(ei,1);
-            player.hp--;
+                e.hp--;
 
-            if(player.hp <= 0){
-                gameOver = true;
+                explosion(
+                    b.x,
+                    b.y,
+                    "#ffcc00"
+                );
+
+                if(e.hp<=0){
+
+                    enemies.splice(ei,1);
+
+                    combo++;
+                    comboTimer=120;
+
+                    const multiplier=Math.min(
+                        5,
+                        1+Math.floor(combo/5)
+                    );
+
+                    score+=100*multiplier;
+
+                }
+
+                break;
+
             }
+
         }
+
+    }
+
+
+    /* 敵とプレイヤー */
+
+    for(let i=enemies.length-1;i>=0;i--){
+
+        if(rectHit(player,enemies[i])){
+
+            enemies.splice(i,1);
+
+            damagePlayer();
+
+        }
+
+    }
+
+
+    /* コンボ */
+
+    if(comboTimer>0){
+
+        comboTimer--;
+
+    }else{
+
+        combo=0;
+
+    }
+
+
+    /* コイン */
+
+    coinsObj.forEach(c=>{
+        c.x-=c.speed*difficulty;
     });
+
+    for(let i=coinsObj.length-1;i>=0;i--){
+
+        const c=coinsObj[i];
+
+        const box={
+            x:c.x-c.r,
+            y:c.y-c.r,
+            w:c.r*2,
+            h:c.r*2
+        };
+
+        if(rectHit(player,box)){
+
+            coins++;
+
+            score+=50;
+
+            explosion(
+                c.x,
+                c.y,
+                "#ffd700"
+            );
+
+            coinsObj.splice(i,1);
+
+        }
+
+    }
+
+    coinsObj=coinsObj.filter(
+        c=>c.x>-50
+    );
+
+
+    /* パワーアップ */
+
+    powerups.forEach(p=>{
+        p.x-=p.speed*difficulty;
+    });
+
+    for(let i=powerups.length-1;i>=0;i--){
+
+        const p=powerups[i];
+
+        if(rectHit(player,p)){
+
+            player.shield=600;
+
+            score+=200;
+
+            explosion(
+                p.x,
+                p.y,
+                "#33ccff"
+            );
+
+            powerups.splice(i,1);
+
+        }
+
+    }
+
+
+    /* パーティクル */
+
+    particles.forEach(p=>{
+
+        p.x+=p.vx;
+        p.y+=p.vy;
+
+        p.vy+=0.15;
+
+        p.life--;
+
+    });
+
+    particles=particles.filter(
+        p=>p.life>0
+    );
+
+
+    /* 雲 */
+
+    clouds.forEach(c=>{
+
+        c.x-=c.speed;
+
+        if(c.x+c.w<0){
+
+            c.x=W+50;
+
+        }
+
+    });
+
+
+    /* アイテム出現 */
+
+    if(Math.random()<0.006){
+
+        spawnCoin();
+
+    }
+
+    if(Math.random()<0.0015){
+
+        spawnShield();
+
+    }
+
 }
+
+
+/* =========================
+   描画
+========================= */
 
 function draw(){
 
-    ctx.clearRect(0,0,canvas.width,canvas.height);
+    ctx.save();
+
+    /* 画面揺れ */
+
+    if(shake>0){
+
+        ctx.translate(
+            (Math.random()-.5)*shake,
+            (Math.random()-.5)*shake
+        );
+
+        shake*=.85;
+
+        if(shake<.3){
+            shake=0;
+        }
+
+    }
+
+
+    /* 空 */
+
+    const sky=ctx.createLinearGradient(
+        0,0,0,H
+    );
+
+    sky.addColorStop(0,"#54bdf5");
+    sky.addColorStop(1,"#d9f5ff");
+
+    ctx.fillStyle=sky;
+
+    ctx.fillRect(0,0,W,H);
+
+
+    /* 雲 */
+
+    ctx.fillStyle="rgba(255,255,255,.8)";
+
+    clouds.forEach(c=>{
+
+        ctx.beginPath();
+
+        ctx.arc(
+            c.x,
+            c.y,
+            c.w*.22,
+            0,
+            Math.PI*2
+        );
+
+        ctx.arc(
+            c.x+c.w*.22,
+            c.y-15,
+            c.w*.27,
+            0,
+            Math.PI*2
+        );
+
+        ctx.arc(
+            c.x+c.w*.48,
+            c.y,
+            c.w*.23,
+            0,
+            Math.PI*2
+        );
+
+        ctx.fill();
+
+    });
+
+
+    /* 遠景 */
+
+    ctx.fillStyle="#86b879";
+
+    ctx.beginPath();
+
+    ctx.moveTo(0,360);
+
+    for(let x=0;x<=W;x+=60){
+
+        ctx.lineTo(
+            x,
+            330+Math.sin(x*.025)*25
+        );
+
+    }
+
+    ctx.lineTo(W,H);
+    ctx.lineTo(0,H);
+
+    ctx.fill();
+
+
+    /* 地面 */
 
     ctx.fillStyle="#5fa85f";
-    ctx.fillRect(0,groundY,canvas.width,canvas.height-groundY);
 
-    ctx.fillStyle="#7b4d2a";
-    ctx.fillRect(0,groundY-10,canvas.width,10);
+    ctx.fillRect(
+        0,
+        groundY,
+        W,
+        H-groundY
+    );
 
-    ctx.fillStyle="#1e88e5";
-    ctx.fillRect(player.x,player.y,player.w,player.h);
+    ctx.fillStyle="#714522";
 
-    ctx.fillStyle="gold";
+    ctx.fillRect(
+        0,
+        groundY-10,
+        W,
+        10
+    );
+
+
+    /* 地面ライン */
+
+    ctx.strokeStyle="rgba(255,255,255,.15)";
+    ctx.lineWidth=2;
+
+    for(let x=0;x<W;x+=45){
+
+        ctx.beginPath();
+
+        ctx.moveTo(x,groundY+25);
+        ctx.lineTo(x+20,groundY+25);
+
+        ctx.stroke();
+
+    }
+
+
+    /* プレイヤー */
+
+    if(
+        player.invincible===0 ||
+        Math.floor(player.invincible/5)%2===0
+    ){
+
+        /* 体 */
+
+        ctx.fillStyle="#1769aa";
+
+        ctx.fillRect(
+            player.x,
+            player.y,
+            player.w,
+            player.h
+        );
+
+        /* 頭 */
+
+        ctx.fillStyle="#ffd1a9";
+
+        ctx.fillRect(
+            player.x+7,
+            player.y-18,
+            28,
+            25
+        );
+
+        /* 髪 */
+
+        ctx.fillStyle="#222";
+
+        ctx.fillRect(
+            player.x+7,
+            player.y-20,
+            28,
+            8
+        );
+
+        /* 目 */
+
+        ctx.fillStyle="#111";
+
+        ctx.fillRect(
+            player.x+27,
+            player.y-10,
+            4,
+            4
+        );
+
+        /* 銃 */
+
+        ctx.fillStyle="#333";
+
+        ctx.fillRect(
+            player.x+player.w-2,
+            player.y+22,
+            25,
+            7
+        );
+
+    }
+
+
+    /* シールド */
+
+    if(player.shield>0){
+
+        ctx.strokeStyle="#33ccff";
+        ctx.lineWidth=4;
+
+        ctx.beginPath();
+
+        ctx.arc(
+            player.x+player.w/2,
+            player.y+player.h/2,
+            40,
+            0,
+            Math.PI*2
+        );
+
+        ctx.stroke();
+
+    }
+
+
+    /* 弾 */
+
     bullets.forEach(b=>{
-        ctx.fillRect(b.x,b.y,b.w,b.h);
+
+        ctx.fillStyle="#ffe600";
+
+        ctx.fillRect(
+            b.x,
+            b.y,
+            b.w,
+            b.h
+        );
+
+        ctx.fillStyle="#fff";
+
+        ctx.fillRect(
+            b.x,
+            b.y,
+            5,
+            b.h
+        );
+
     });
 
-    ctx.fillStyle="crimson";
+
+    /* 敵 */
+
     enemies.forEach(e=>{
-        ctx.fillRect(e.x,e.y,e.w,e.h);
+
+        ctx.fillStyle=e.color;
+
+        ctx.fillRect(
+            e.x,
+            e.y,
+            e.w,
+            e.h
+        );
+
+        /* 目 */
+
+        ctx.fillStyle="#fff";
+
+        ctx.fillRect(
+            e.x+8,
+            e.y+10,
+            8,
+            8
+        );
+
+        ctx.fillRect(
+            e.x+e.w-16,
+            e.y+10,
+            8,
+            8
+        );
+
+        ctx.fillStyle="#111";
+
+        ctx.fillRect(
+            e.x+10,
+            e.y+12,
+            4,
+            4
+        );
+
+        ctx.fillRect(
+            e.x+e.w-14,
+            e.y+12,
+            4,
+            4
+        );
+
+        /* HPバー */
+
+        if(e.maxHp>1){
+
+            ctx.fillStyle="#222";
+
+            ctx.fillRect(
+                e.x,
+                e.y-9,
+                e.w,
+                5
+            );
+
+            ctx.fillStyle="#4cff4c";
+
+            ctx.fillRect(
+                e.x,
+                e.y-9,
+                e.w*(e.hp/e.maxHp),
+                5
+            );
+
+        }
+
     });
 
-    ctx.fillStyle="black";
-    ctx.font="28px sans-serif";
-    ctx.fillText("RED OR DEAD 2",20,40);
 
-    ctx.fillText("SCORE: "+score,20,80);
+    /* コイン */
 
-    ctx.fillText("HP: "+player.hp,20,120);
+    coinsObj.forEach(c=>{
+
+        ctx.fillStyle="#ffd700";
+
+        ctx.beginPath();
+
+        ctx.arc(
+            c.x,
+            c.y,
+            c.r,
+            0,
+            Math.PI*2
+        );
+
+        ctx.fill();
+
+        ctx.fillStyle="#9b7200";
+
+        ctx.font="bold 12px Arial";
+
+        ctx.textAlign="center";
+
+        ctx.fillText(
+            "$",
+            c.x,
+            c.y+4
+        );
+
+        ctx.textAlign="left";
+
+    });
+
+
+    /* パワーアップ */
+
+    powerups.forEach(p=>{
+
+        ctx.fillStyle="#33ccff";
+
+        ctx.beginPath();
+
+        ctx.arc(
+            p.x+p.w/2,
+            p.y+p.h/2,
+            16,
+            0,
+            Math.PI*2
+        );
+
+        ctx.fill();
+
+        ctx.fillStyle="#fff";
+
+        ctx.font="bold 17px Arial";
+
+        ctx.fillText(
+            "S",
+            p.x+8,
+            p.y+18
+        );
+
+    });
+
+
+    /* 爆発 */
+
+    particles.forEach(p=>{
+
+        ctx.globalAlpha=
+            Math.max(0,p.life/40);
+
+        ctx.fillStyle=p.color;
+
+        ctx.fillRect(
+            p.x,
+            p.y,
+            p.size,
+            p.size
+        );
+
+    });
+
+    ctx.globalAlpha=1;
+
+
+    /* UI */
+
+    ctx.fillStyle="rgba(0,0,0,.55)";
+
+    ctx.fillRect(
+        15,
+        15,
+        280,
+        115
+    );
+
+    ctx.fillStyle="#fff";
+
+    ctx.font="bold 23px Arial";
+
+    ctx.fillText(
+        "RED OR DEAD 2",
+        28,
+        43
+    );
+
+    ctx.font="bold 20px Arial";
+
+    ctx.fillText(
+        "SCORE  "+score,
+        28,
+        72
+    );
+
+    ctx.fillText(
+        "COIN   "+coins,
+        160,
+        72
+    );
+
+
+    /* HP */
+
+    ctx.fillStyle="#333";
+
+    ctx.fillRect(
+        28,
+        91,
+        200,
+        16
+    );
+
+    ctx.fillStyle="#ff3030";
+
+    ctx.fillRect(
+        28,
+        91,
+        200*(player.hp/player.maxHp),
+        16
+    );
+
+    ctx.strokeStyle="#fff";
+
+    ctx.strokeRect(
+        28,
+        91,
+        200,
+        16
+    );
+
+
+    /* コンボ */
+
+    if(combo>=2){
+
+        ctx.fillStyle="#ffeb3b";
+
+        ctx.font="bold 28px Arial";
+
+        ctx.fillText(
+            combo+" COMBO!",
+            W-220,
+            50
+        );
+
+        const multiplier=Math.min(
+            5,
+            1+Math.floor(combo/5)
+        );
+
+        ctx.font="bold 18px Arial";
+
+        ctx.fillText(
+            "×"+multiplier+" SCORE",
+            W-180,
+            78
+        );
+
+    }
+
+
+    /* シールド表示 */
+
+    if(player.shield>0){
+
+        ctx.fillStyle="#33ccff";
+
+        ctx.font="bold 18px Arial";
+
+        ctx.fillText(
+            "SHIELD",
+            W-130,
+            110
+        );
+
+    }
+
+
+    /* 経過時間 */
+
+    ctx.fillStyle="rgba(0,0,0,.4)";
+
+    ctx.font="16px Arial";
+
+    ctx.fillText(
+        "TIME "+Math.floor(elapsed)+"s",
+        W-100,
+        25
+    );
+
+
+    /* ゲームオーバー */
 
     if(gameOver){
-        ctx.fillStyle="rgba(0,0,0,.7)";
-        ctx.fillRect(0,0,canvas.width,canvas.height);
 
-        ctx.fillStyle="white";
-        ctx.font="60px sans-serif";
-        ctx.fillText("GAME OVER",250,220);
+        ctx.fillStyle="rgba(0,0,0,.72)";
 
-        ctx.font="32px sans-serif";
-        ctx.fillText("SCORE: "+score,350,290);
+        ctx.fillRect(
+            0,
+            0,
+            W,
+            H
+        );
+
+        ctx.textAlign="center";
+
+        ctx.fillStyle="#ff3030";
+
+        ctx.font="bold 64px Arial";
+
+        ctx.fillText(
+            "GAME OVER",
+            W/2,
+            220
+        );
+
+        ctx.fillStyle="#fff";
+
+        ctx.font="bold 30px Arial";
+
+        ctx.fillText(
+            "SCORE  "+score,
+            W/2,
+            275
+        );
+
+        ctx.font="20px Arial";
+
+        ctx.fillText(
+            "敵を倒してさらに高得点を狙え！",
+            W/2,
+            315
+        );
+
+        ctx.textAlign="left";
+
     }
+
+
+    ctx.restore();
+
 }
 
+
+/* =========================
+   ゲーム再スタート
+========================= */
+
+function restartGame(){
+
+    player.x=100;
+    player.y=groundY-player.h;
+
+    player.vx=0;
+    player.vy=0;
+
+    player.hp=player.maxHp;
+
+    player.shield=0;
+    player.invincible=0;
+
+    bullets=[];
+    enemies=[];
+    particles=[];
+    coinsObj=[];
+    powerups=[];
+
+    score=0;
+    coins=0;
+    combo=0;
+    comboTimer=0;
+    elapsed=0;
+
+    gameOver=false;
+
+    document.getElementById(
+        "restart"
+    ).style.display="none";
+
+}
+
+
+/* =========================
+   敵生成タイマー
+========================= */
+
+setInterval(()=>{
+
+    if(!gameOver){
+
+        const interval=Math.max(
+            450,
+            1500-elapsed*12
+        );
+
+        spawnEnemy();
+
+    }
+
+},900);
+
+
+/* =========================
+   スマホ操作
+========================= */
+
+function holdButton(id,key){
+
+    const btn=document.getElementById(id);
+
+    btn.addEventListener(
+        "pointerdown",
+        e=>{
+            e.preventDefault();
+            keys[key]=true;
+        }
+    );
+
+    btn.addEventListener(
+        "pointerup",
+        e=>{
+            e.preventDefault();
+            keys[key]=false;
+        }
+    );
+
+    btn.addEventListener(
+        "pointercancel",
+        ()=>{
+            keys[key]=false;
+        }
+    );
+
+    btn.addEventListener(
+        "pointerleave",
+        ()=>{
+            keys[key]=false;
+        }
+    );
+
+}
+
+holdButton("leftBtn","arrowleft");
+holdButton("rightBtn","arrowright");
+holdButton("shootBtn","x");
+
+
+document.getElementById(
+    "jumpBtn"
+).addEventListener(
+    "pointerdown",
+    e=>{
+
+        e.preventDefault();
+
+        if(player.onGround){
+
+            player.vy=player.jumpPower;
+
+            player.onGround=false;
+
+        }
+
+    }
+);
+
+
+document.getElementById(
+    "restart"
+).addEventListener(
+    "click",
+    restartGame
+);
+
+
+/* =========================
+   ゲームループ
+========================= */
+
 function loop(){
+
     update();
+
     draw();
+
     requestAnimationFrame(loop);
+
 }
 
 loop();
+
 </script>
 
 </body>
