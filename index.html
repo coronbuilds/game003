@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>RED OR DEAD 2</title>
+<style>
+body{
+    margin:0;
+    background:#111;
+    overflow:hidden;
+    font-family:sans-serif;
+}
+canvas{
+    display:block;
+    margin:auto;
+    background:linear-gradient(#6ec6ff,#bde7ff);
+}
+</style>
+</head>
+<body>
+
+<canvas id="game" width="900" height="500"></canvas>
+
+<script>
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+
+const keys = {};
+
+document.addEventListener("keydown",e=>{
+    keys[e.key.toLowerCase()] = true;
+});
+
+document.addEventListener("keyup",e=>{
+    keys[e.key.toLowerCase()] = false;
+});
+
+const player = {
+    x:100,
+    y:350,
+    w:40,
+    h:60,
+    vx:0,
+    vy:0,
+    hp:3,
+    onGround:false
+};
+
+const groundY = 410;
+
+let bullets = [];
+let enemies = [];
+let score = 0;
+let gameOver = false;
+
+function shoot(){
+    bullets.push({
+        x:player.x + player.w,
+        y:player.y + 20,
+        w:12,
+        h:4,
+        speed:10
+    });
+}
+
+document.addEventListener("keydown",e=>{
+    if(e.key.toLowerCase()==="x" && !gameOver){
+        shoot();
+    }
+});
+
+function spawnEnemy(){
+    enemies.push({
+        x:canvas.width + 50,
+        y:360,
+        w:40,
+        h:50,
+        speed:3 + Math.random()*2
+    });
+}
+
+setInterval(()=>{
+    if(!gameOver){
+        spawnEnemy();
+    }
+},1500);
+
+function rectHit(a,b){
+    return (
+        a.x < b.x+b.w &&
+        a.x+a.w > b.x &&
+        a.y < b.y+b.h &&
+        a.y+a.h > b.y
+    );
+}
+
+function update(){
+
+    if(gameOver) return;
+
+    player.vx = 0;
+
+    if(keys["arrowleft"]){
+        player.vx = -5;
+    }
+
+    if(keys["arrowright"]){
+        player.vx = 5;
+    }
+
+    if(keys["z"] && player.onGround){
+        player.vy = -13;
+        player.onGround = false;
+    }
+
+    player.x += player.vx;
+
+    player.vy += 0.7;
+    player.y += player.vy;
+
+    if(player.y + player.h >= groundY){
+        player.y = groundY - player.h;
+        player.vy = 0;
+        player.onGround = true;
+    }
+
+    bullets.forEach(b=>{
+        b.x += b.speed;
+    });
+
+    bullets = bullets.filter(b=>b.x < canvas.width+50);
+
+    enemies.forEach(enemy=>{
+        enemy.x -= enemy.speed;
+    });
+
+    enemies = enemies.filter(e=>e.x > -100);
+
+    bullets.forEach((bullet,bi)=>{
+        enemies.forEach((enemy,ei)=>{
+            if(rectHit(bullet,enemy)){
+                bullets.splice(bi,1);
+                enemies.splice(ei,1);
+                score += 100;
+            }
+        });
+    });
+
+    enemies.forEach((enemy,ei)=>{
+        if(rectHit(player,enemy)){
+            enemies.splice(ei,1);
+            player.hp--;
+
+            if(player.hp <= 0){
+                gameOver = true;
+            }
+        }
+    });
+}
+
+function draw(){
+
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+
+    ctx.fillStyle="#5fa85f";
+    ctx.fillRect(0,groundY,canvas.width,canvas.height-groundY);
+
+    ctx.fillStyle="#7b4d2a";
+    ctx.fillRect(0,groundY-10,canvas.width,10);
+
+    ctx.fillStyle="#1e88e5";
+    ctx.fillRect(player.x,player.y,player.w,player.h);
+
+    ctx.fillStyle="gold";
+    bullets.forEach(b=>{
+        ctx.fillRect(b.x,b.y,b.w,b.h);
+    });
+
+    ctx.fillStyle="crimson";
+    enemies.forEach(e=>{
+        ctx.fillRect(e.x,e.y,e.w,e.h);
+    });
+
+    ctx.fillStyle="black";
+    ctx.font="28px sans-serif";
+    ctx.fillText("RED OR DEAD 2",20,40);
+
+    ctx.fillText("SCORE: "+score,20,80);
+
+    ctx.fillText("HP: "+player.hp,20,120);
+
+    if(gameOver){
+        ctx.fillStyle="rgba(0,0,0,.7)";
+        ctx.fillRect(0,0,canvas.width,canvas.height);
+
+        ctx.fillStyle="white";
+        ctx.font="60px sans-serif";
+        ctx.fillText("GAME OVER",250,220);
+
+        ctx.font="32px sans-serif";
+        ctx.fillText("SCORE: "+score,350,290);
+    }
+}
+
+function loop(){
+    update();
+    draw();
+    requestAnimationFrame(loop);
+}
+
+loop();
+</script>
+
+</body>
+</html>
