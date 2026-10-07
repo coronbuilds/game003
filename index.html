@@ -159,7 +159,6 @@ canvas{
 ===================== */
 
 .controls{
-
     position:absolute;
 
     left:0;
@@ -173,8 +172,9 @@ canvas{
     padding:0 15px;
 
     pointer-events:none;
-}
 
+    z-index:50;
+}
 .leftPad,
 .rightPad{
 
@@ -237,16 +237,17 @@ canvas{
     display:flex;
 
     flex-direction:column;
-
     justify-content:center;
-
     align-items:center;
 
     color:white;
 
-    z-index:100;
-}
+    z-index:9999;
 
+    pointer-events:auto;
+
+    touch-action:manipulation;
+}
 #startScreen h1{
 
     font-size:52px;
@@ -269,21 +270,21 @@ canvas{
     border-radius:14px;
 
     font-size:24px;
-
     font-weight:bold;
 
-    background:#fff;
-    color:#000;
+    background:white;
+    color:black;
 
     position:relative;
 
-    z-index:101;
+    z-index:10000;
 
-    cursor:pointer;
+    pointer-events:auto;
 
     touch-action:manipulation;
-}
 
+    cursor:pointer;
+}
 </style>
 </head>
 
